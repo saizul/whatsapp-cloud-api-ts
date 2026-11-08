@@ -14,6 +14,18 @@ A typed, zero-dependency TypeScript client for the **Meta WhatsApp Business Clou
 npm install whatsapp-cloud-api-ts
 ```
 
+
+## Install from GitHub Packages
+
+Releases are also published to [GitHub Packages](https://github.com/saizul/whatsapp-cloud-api-ts/pkgs/npm/whatsapp-cloud-api-ts) as `@saizul/whatsapp-cloud-api-ts`:
+
+```bash
+echo "@saizul:registry=https://npm.pkg.github.com" >> .npmrc
+npm install @saizul/whatsapp-cloud-api-ts
+```
+
+GitHub Packages needs a personal access token with `read:packages` in your `~/.npmrc` (`//npm.pkg.github.com/:_authToken=YOUR_TOKEN`).
+
 ## Send messages
 
 ```ts
