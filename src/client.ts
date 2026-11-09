@@ -22,6 +22,7 @@ import {
   assertList,
   assertLocation,
   assertMediaRef,
+  assertMediaUpload,
   assertReaction,
   assertRecipient,
   assertText,
@@ -230,10 +231,15 @@ export class WhatsAppClient {
 
   // --------------------------------------------------------------- media
 
-  /** Upload a file and receive a media id usable in `sendImage` etc. */
+  /**
+   * Upload a file and receive a media id usable in `sendImage` etc. The MIME type
+   * and size are checked locally against Meta's documented limits unless the
+   * client was created with `validate: false`.
+   */
   uploadMedia(data: Blob | Uint8Array | ArrayBuffer, mimeType: string, filename = "file"): Promise<UploadMediaResponse> {
     if (!mimeType) throw new WhatsAppValidationError("mimeType is required");
     const blob = data instanceof Blob ? data : new Blob([data as BlobPart], { type: mimeType });
+    if (this.#validate) assertMediaUpload(mimeType, blob.size);
     const form = new FormData();
     form.append("messaging_product", "whatsapp");
     form.append("type", mimeType);

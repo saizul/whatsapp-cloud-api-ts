@@ -121,3 +121,64 @@ export function assertLocation(lat: number, lng: number): void {
   if (!Number.isFinite(lat) || lat < -90 || lat > 90) fail("latitude must be between -90 and 90");
   if (!Number.isFinite(lng) || lng < -180 || lng > 180) fail("longitude must be between -180 and 180");
 }
+
+export type MediaKind = "image" | "video" | "audio" | "document" | "sticker";
+
+/**
+ * Supported upload MIME types and maximum sizes in bytes, per media kind.
+ * Mirrors Meta's documented media limits at the time of writing. Stickers are
+ * limited to 100 KB when static and 500 KB when animated; the larger limit is
+ * used here because the format alone cannot tell them apart.
+ */
+export const MEDIA_LIMITS: Record<MediaKind, { mimeTypes: readonly string[]; maxBytes: number }> = {
+  image: { mimeTypes: ["image/jpeg", "image/png"], maxBytes: 5 * 1024 * 1024 },
+  video: { mimeTypes: ["video/mp4", "video/3gpp"], maxBytes: 16 * 1024 * 1024 },
+  audio: {
+    mimeTypes: ["audio/aac", "audio/mp4", "audio/mpeg", "audio/amr", "audio/ogg"],
+    maxBytes: 16 * 1024 * 1024,
+  },
+  document: {
+    mimeTypes: [
+      "text/plain",
+      "application/pdf",
+      "application/vnd.ms-powerpoint",
+      "application/msword",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ],
+    maxBytes: 100 * 1024 * 1024,
+  },
+  sticker: { mimeTypes: ["image/webp"], maxBytes: 500 * 1024 },
+};
+
+function baseMimeType(mimeType: string): string {
+  return mimeType.split(";")[0]!.trim().toLowerCase();
+}
+
+/**
+ * Which kind of WhatsApp media a MIME type belongs to, or `undefined` when it is
+ * not supported. Parameters such as `; codecs=opus` are ignored.
+ * `image/webp` is reported as `sticker`, the only kind that accepts it.
+ */
+export function getMediaKind(mimeType: string): MediaKind | undefined {
+  if (typeof mimeType !== "string") return undefined;
+  const base = baseMimeType(mimeType);
+  for (const kind of Object.keys(MEDIA_LIMITS) as MediaKind[]) {
+    if (MEDIA_LIMITS[kind].mimeTypes.includes(base)) return kind;
+  }
+  return undefined;
+}
+
+/** Reject unsupported MIME types, empty files and files above the documented size limit. */
+export function assertMediaUpload(mimeType: string, size: number): void {
+  nonEmpty(mimeType, "mimeType");
+  const kind = getMediaKind(mimeType);
+  if (!kind) fail(`unsupported media type "${mimeType}"`);
+  if (!Number.isFinite(size) || size <= 0) fail("media file must not be empty");
+  const { maxBytes } = MEDIA_LIMITS[kind];
+  if (size > maxBytes) {
+    fail(`${kind} files must be at most ${maxBytes} bytes (got ${size})`);
+  }
+}
