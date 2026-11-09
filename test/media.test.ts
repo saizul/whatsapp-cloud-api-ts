@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WhatsAppApiError, WhatsAppValidationError } from "../src/index.js";
+import { MEDIA_LIMITS, WhatsAppApiError, WhatsAppValidationError, getMediaKind } from "../src/index.js";
 import { jsonResponse, makeClient, mockFetch } from "./helpers.js";
 
 describe("uploadMedia", () => {
@@ -98,5 +98,66 @@ describe("getMedia / downloadMedia / deleteMedia", () => {
   it("deleteMedia requires an id", () => {
     const { client } = makeClient(mockFetch());
     expect(() => client.deleteMedia("")).toThrow(WhatsAppValidationError);
+  });
+});
+
+describe("upload validation", () => {
+  it("rejects unsupported MIME types before any request", () => {
+    const m = mockFetch(jsonResponse({ id: "1" }));
+    const { client } = makeClient(m);
+    expect(() => client.uploadMedia(new Uint8Array([1]), "image/gif")).toThrow(WhatsAppValidationError);
+    expect(() => client.uploadMedia(new Uint8Array([1]), "application/zip")).toThrow(/unsupported media type/);
+    expect(m.calls).toHaveLength(0);
+  });
+  it("rejects empty files", () => {
+    const m = mockFetch(jsonResponse({ id: "1" }));
+    const { client } = makeClient(m);
+    expect(() => client.uploadMedia(new Uint8Array(0), "image/png")).toThrow(/empty/);
+    expect(m.calls).toHaveLength(0);
+  });
+  it("enforces the per-kind size limit", async () => {
+    const m = mockFetch(jsonResponse({ id: "1" }));
+    const { client } = makeClient(m);
+    const overImage = new Uint8Array(MEDIA_LIMITS.image.maxBytes + 1);
+    expect(() => client.uploadMedia(overImage, "image/jpeg")).toThrow(/image files must be at most/);
+    expect(() => client.uploadMedia(new Uint8Array(MEDIA_LIMITS.sticker.maxBytes + 1), "image/webp")).toThrow(
+      /sticker/,
+    );
+    expect(m.calls).toHaveLength(0);
+    // The same size is fine for a document, whose limit is much higher.
+    await client.uploadMedia(overImage, "application/pdf");
+    expect(m.calls).toHaveLength(1);
+  });
+  it("accepts a size exactly at the limit and MIME parameters", async () => {
+    const m = mockFetch(jsonResponse({ id: "1" }), jsonResponse({ id: "2" }));
+    const { client } = makeClient(m);
+    await client.uploadMedia(new Uint8Array(MEDIA_LIMITS.image.maxBytes), "image/png");
+    await client.uploadMedia(new Uint8Array([1]), "audio/ogg; codecs=opus");
+    expect(m.calls).toHaveLength(2);
+  });
+  it("measures Blob and ArrayBuffer inputs", () => {
+    const { client } = makeClient(mockFetch());
+    expect(() => client.uploadMedia(new ArrayBuffer(0), "video/mp4")).toThrow(/empty/);
+    expect(() =>
+      client.uploadMedia(new Blob([new Uint8Array(MEDIA_LIMITS.image.maxBytes + 1)]), "image/png"),
+    ).toThrow(/at most/);
+  });
+  it("can be disabled with validate: false", async () => {
+    const m = mockFetch(jsonResponse({ id: "1" }));
+    const { client } = makeClient(m, { validate: false });
+    await client.uploadMedia(new Uint8Array([1]), "image/gif");
+    expect(m.calls).toHaveLength(1);
+  });
+});
+
+describe("getMediaKind", () => {
+  it("maps MIME types to media kinds", () => {
+    expect(getMediaKind("image/png")).toBe("image");
+    expect(getMediaKind("VIDEO/MP4")).toBe("video");
+    expect(getMediaKind("audio/ogg; codecs=opus")).toBe("audio");
+    expect(getMediaKind("application/pdf")).toBe("document");
+    expect(getMediaKind("image/webp")).toBe("sticker");
+    expect(getMediaKind("image/gif")).toBeUndefined();
+    expect(getMediaKind("")).toBeUndefined();
   });
 });

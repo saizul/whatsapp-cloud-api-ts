@@ -77,6 +77,8 @@ const { data, contentType } = await wa.downloadMedia(incomingMediaId); // id or 
 await wa.deleteMedia(id);
 ```
 
+`uploadMedia` checks the MIME type and size locally before sending anything and throws `WhatsAppValidationError` for unsupported types, empty files and files over the documented limit (image 5 MB, video and audio 16 MB, document 100 MB, sticker 500 KB). The limits are exported as `MEDIA_LIMITS`, and `getMediaKind(mimeType)` tells you which `send*` method fits a file (`"image"`, `"video"`, `"audio"`, `"document"`, `"sticker"`). Pass `validate: false` to skip the check if Meta changes its limits.
+
 ### Errors
 
 ```ts
@@ -124,7 +126,7 @@ A complete `node:http` server (no Express) is in [`examples/server.mjs`](example
 
 Checked against Meta's published docs: the `POST /{phone-number-id}/messages` endpoint, the `messaging_product`/`recipient_type`/`to`/`type` envelope, the text `preview_url` flag, "up to three" reply buttons, and the webhook challenge and `X-Hub-Signature-256` scheme.
 
-Not independently re-verified here (Meta's documentation pages are largely client-rendered and may change): the local validation limits in `LIMITS` (button title 20, list row title 24, description 72, 10 rows, body 1024, text 4096, caption 1024), the set of rate-limit error codes treated as retry hints (`4, 17, 80007, 130429, 131048`, used for `isRateLimited` only; retries key off HTTP status), and template button `index` being sent as a string. If Meta changes a limit, pass `validate: false`. The default API version is `v21.0`; newer versions exist, pass `apiVersion` to use one. Group messaging, BSUID addressing, Flows and the typing indicator are not modelled; use `sendRaw`.
+Not independently re-verified here (Meta's documentation pages are largely client-rendered and may change): the local validation limits in `LIMITS` (button title 20, list row title 24, description 72, 10 rows, body 1024, text 4096, caption 1024) and the media upload limits in `MEDIA_LIMITS`, the set of rate-limit error codes treated as retry hints (`4, 17, 80007, 130429, 131048`, used for `isRateLimited` only; retries key off HTTP status), and template button `index` being sent as a string. If Meta changes a limit, pass `validate: false`. The default API version is `v21.0`; newer versions exist, pass `apiVersion` to use one. Group messaging, BSUID addressing, Flows and the typing indicator are not modelled; use `sendRaw`.
 
 ## Bangla (বাংলা)
 

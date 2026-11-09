@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- `uploadMedia` now validates the MIME type and file size against Meta's documented
+  limits before the request (disable with `validate: false`).
+- Exported `MEDIA_LIMITS` and `getMediaKind(mimeType)`.
+
 ## [0.1.0] - 2026-11-08
 
 ### Added

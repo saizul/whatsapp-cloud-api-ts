@@ -9,7 +9,8 @@ export {
   extractGraphError,
 } from "./errors.js";
 export type { GraphErrorBody } from "./errors.js";
-export { LIMITS } from "./validate.js";
+export { LIMITS, MEDIA_LIMITS, getMediaKind } from "./validate.js";
+export type { MediaKind } from "./validate.js";
 export {
   verifyChallenge,
   verifySignature,
