@@ -34,7 +34,7 @@ import { WhatsAppClient } from "whatsapp-cloud-api-ts";
 const wa = new WhatsAppClient({
   accessToken: process.env.WHATSAPP_TOKEN!, // server side only
   phoneNumberId: process.env.PHONE_NUMBER_ID!,
-  apiVersion: "v21.0", // default; configurable
+  apiVersion: "v26.0", // default (DEFAULT_API_VERSION); configurable
 });
 
 await wa.sendText("8801XXXXXXXXX", "Hello from Saizul's bot", { previewUrl: true });
@@ -124,9 +124,9 @@ A complete `node:http` server (no Express) is in [`examples/server.mjs`](example
 
 ## Verified vs. uncertain
 
-Checked against Meta's published docs: the `POST /{phone-number-id}/messages` endpoint, the `messaging_product`/`recipient_type`/`to`/`type` envelope, the text `preview_url` flag, "up to three" reply buttons, and the webhook challenge and `X-Hub-Signature-256` scheme.
+Checked against Meta's published docs: the interactive-message limits (reply buttons 1 to 3 with titles up to 20 characters; list header 60, body 1024, button text 20, up to 10 sections, section and row titles 24, row description 72), the default Graph API version (`v26.0` is the latest listed in the Graph API changelog; exported as `DEFAULT_API_VERSION`), the `POST /{phone-number-id}/messages` endpoint, the `messaging_product`/`recipient_type`/`to`/`type` envelope, the text `preview_url` flag, "up to three" reply buttons, and the webhook challenge and `X-Hub-Signature-256` scheme.
 
-Not independently re-verified here (Meta's documentation pages are largely client-rendered and may change): the local validation limits in `LIMITS` (button title 20, list row title 24, description 72, 10 rows, body 1024, text 4096, caption 1024) and the media upload limits in `MEDIA_LIMITS`, the set of rate-limit error codes treated as retry hints (`4, 17, 80007, 130429, 131048`, used for `isRateLimited` only; retries key off HTTP status), and template button `index` being sent as a string. If Meta changes a limit, pass `validate: false`. The default API version is `v21.0`; newer versions exist, pass `apiVersion` to use one. Group messaging, BSUID addressing, Flows and the typing indicator are not modelled; use `sendRaw`.
+Not independently re-verified here (Meta's documentation pages are largely client-rendered and may change): the remaining local limits in `LIMITS` (the 10-row total across a list, footer 60, text 4096, caption 1024, button and row id lengths) and the media upload limits in `MEDIA_LIMITS`, the set of rate-limit error codes treated as retry hints (`4, 17, 80007, 130429, 131048`, used for `isRateLimited` only; retries key off HTTP status), and template button `index` being sent as a string. If Meta changes a limit, pass `validate: false`. Meta releases Graph API versions regularly; pass `apiVersion` to pin a different one. Group messaging, BSUID addressing, Flows and the typing indicator are not modelled; use `sendRaw`.
 
 ## Bangla (বাংলা)
 

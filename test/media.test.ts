@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MEDIA_LIMITS, WhatsAppApiError, WhatsAppValidationError, getMediaKind } from "../src/index.js";
+import { DEFAULT_API_VERSION, MEDIA_LIMITS, WhatsAppApiError, WhatsAppValidationError, getMediaKind } from "../src/index.js";
 import { jsonResponse, makeClient, mockFetch } from "./helpers.js";
 
 describe("uploadMedia", () => {
@@ -8,7 +8,7 @@ describe("uploadMedia", () => {
     const { client } = makeClient(m);
     const res = await client.uploadMedia(new Uint8Array([1, 2, 3]), "image/png", "a.png");
     expect(res.id).toBe("MEDIA123");
-    expect(m.calls[0]!.url).toBe("https://graph.facebook.com/v21.0/1234567890/media");
+    expect(m.calls[0]!.url).toBe(`https://graph.facebook.com/${DEFAULT_API_VERSION}/1234567890/media`);
     const headers = m.calls[0]!.init.headers as Record<string, string>;
     expect(headers["Content-Type"]).toBeUndefined();
     expect(m.calls[0]!.init.body).toBeInstanceOf(FormData);
@@ -52,7 +52,7 @@ describe("getMedia / downloadMedia / deleteMedia", () => {
     const { client } = makeClient(m);
     const res = await client.getMedia("M1");
     expect(res).toEqual(info);
-    expect(m.calls[0]!.url).toBe("https://graph.facebook.com/v21.0/M1?phone_number_id=1234567890");
+    expect(m.calls[0]!.url).toBe(`https://graph.facebook.com/${DEFAULT_API_VERSION}/M1?phone_number_id=1234567890`);
     expect(m.calls[0]!.init.method).toBe("GET");
     expect(m.calls[0]!.init.body).toBeUndefined();
   });
@@ -93,7 +93,7 @@ describe("getMedia / downloadMedia / deleteMedia", () => {
     const { client } = makeClient(m);
     await client.deleteMedia("M1");
     expect(m.calls[0]!.init.method).toBe("DELETE");
-    expect(m.calls[0]!.url).toBe("https://graph.facebook.com/v21.0/M1");
+    expect(m.calls[0]!.url).toBe(`https://graph.facebook.com/${DEFAULT_API_VERSION}/M1`);
   });
   it("deleteMedia requires an id", () => {
     const { client } = makeClient(mockFetch());

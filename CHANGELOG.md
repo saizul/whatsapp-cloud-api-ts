@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Default Graph API version is now `v26.0`, defined once as the exported
+  `DEFAULT_API_VERSION` constant (previously `v21.0`). Pass `apiVersion` to pin another.
+- Re-checked interactive reply-button and list limits against Meta's docs.
+
 ### Added
 - `uploadMedia` now validates the MIME type and file size against Meta's documented
   limits before the request (disable with `validate: false`).
