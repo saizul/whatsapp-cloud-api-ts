@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WhatsAppApiError, WhatsAppNetworkError } from "../src/index.js";
+import { DEFAULT_API_VERSION, WhatsAppApiError, WhatsAppNetworkError } from "../src/index.js";
 import { jsonResponse, makeClient, mockFetch, OK_SEND } from "./helpers.js";
 
 const TO = "8801700000000";
@@ -99,7 +99,7 @@ describe("retries", () => {
     const { client } = makeClient(m, { maxRetries: 0 });
     const e = (await client.getMedia("M1").catch((x: unknown) => x)) as Error;
     expect(e.message).not.toContain("phone_number_id");
-    expect(e.message).toContain("/v21.0/M1");
+    expect(e.message).toContain(`/${DEFAULT_API_VERSION}/M1`);
   });
   it("resends the same body on each attempt", async () => {
     const m = mockFetch(err(500), err(500), jsonResponse(OK_SEND));

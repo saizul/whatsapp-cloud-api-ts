@@ -29,7 +29,8 @@ import {
   normalizeRecipient,
 } from "./validate.js";
 
-export const DEFAULT_API_VERSION = "v21.0";
+/** Default Graph API version. Single source of truth; override per client with `apiVersion`. */
+export const DEFAULT_API_VERSION = "v26.0";
 export const DEFAULT_BASE_URL = "https://graph.facebook.com";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -39,7 +40,7 @@ export interface WhatsAppClientOptions {
   accessToken: string;
   /** The WhatsApp phone number id (not the phone number itself). */
   phoneNumberId: string;
-  /** Graph API version. Default `v21.0`. */
+  /** Graph API version. Defaults to {@link DEFAULT_API_VERSION}. */
   apiVersion?: string;
   /** Override for tests or a proxy. Default `https://graph.facebook.com`. */
   baseUrl?: string;
@@ -93,7 +94,7 @@ export class WhatsAppClient {
     this.phoneNumberId = options.phoneNumberId;
     this.apiVersion = options.apiVersion ?? DEFAULT_API_VERSION;
     if (!/^v\d+\.\d+$/.test(this.apiVersion)) {
-      throw new WhatsAppValidationError(`apiVersion must look like "v21.0", got "${this.apiVersion}"`);
+      throw new WhatsAppValidationError(`apiVersion must look like "${DEFAULT_API_VERSION}", got "${this.apiVersion}"`);
     }
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     if (!options.fetch && typeof globalThis.fetch !== "function") {

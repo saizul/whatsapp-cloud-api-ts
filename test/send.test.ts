@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WhatsAppClient, WhatsAppValidationError } from "../src/index.js";
+import { DEFAULT_API_VERSION, WhatsAppClient, WhatsAppValidationError } from "../src/index.js";
 import { jsonResponse, makeClient, mockFetch, OK_SEND } from "./helpers.js";
 
 const TO = "8801700000000";
@@ -18,10 +18,20 @@ describe("client construction", () => {
     const c = new WhatsAppClient({ accessToken: "x", phoneNumberId: "1", apiVersion: v });
     expect(c.apiVersion).toBe(v);
   });
-  it("defaults to v21.0 and graph.facebook.com", () => {
+  it("defaults to DEFAULT_API_VERSION and graph.facebook.com", () => {
     const c = new WhatsAppClient({ accessToken: "x", phoneNumberId: "1" });
-    expect(c.apiVersion).toBe("v21.0");
+    expect(c.apiVersion).toBe(DEFAULT_API_VERSION);
     expect(c.baseUrl).toBe("https://graph.facebook.com");
+  });
+  it("exports a well-formed default version constant", () => {
+    expect(DEFAULT_API_VERSION).toMatch(/^v\d+\.\d+$/);
+  });
+  it("lets an explicit apiVersion override the default in request URLs", async () => {
+    const m = mockFetch(jsonResponse(OK_SEND));
+    const { client } = makeClient(m, { apiVersion: "v22.0" });
+    await client.sendText(TO, "hi");
+    expect(m.calls[0]!.url).toContain("/v22.0/");
+    expect(m.calls[0]!.url).not.toContain(DEFAULT_API_VERSION);
   });
   it("strips trailing slashes from baseUrl", () => {
     const c = new WhatsAppClient({ accessToken: "x", phoneNumberId: "1", baseUrl: "http://localhost:9/// " .trim() });
@@ -77,7 +87,7 @@ describe("request plumbing", () => {
     try {
       const c = new WhatsAppClient({ accessToken: "x", phoneNumberId: "9" });
       await c.sendText(TO, "hi");
-      expect(seen).toBe("https://graph.facebook.com/v21.0/9/messages");
+      expect(seen).toBe(`https://graph.facebook.com/${DEFAULT_API_VERSION}/9/messages`);
     } finally {
       globalThis.fetch = original;
     }
