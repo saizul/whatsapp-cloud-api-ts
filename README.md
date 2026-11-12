@@ -67,6 +67,34 @@ await wa.markAsRead("wamid.INCOMING");
 
 Also available: `sendVideo`, `sendAudio`, `sendSticker`, and `sendRaw` for message types not yet modelled.
 
+### Call-to-action, location request, media headers and typing
+
+```ts
+// One button that opens a URL (label up to 20 characters, absolute http(s) URL)
+await wa.sendCtaUrl("8801XXXXXXXXX", {
+  header: { type: "image", image: { link: "https://example.com/banner.jpg" } },
+  body: "Today's deals are live",
+  displayText: "Open shop",
+  url: "https://example.com/shop",
+  footer: "Ends at midnight",
+});
+
+// "Send location" button; the reply arrives as a normal `location` webhook message
+await wa.sendLocationRequest("8801XXXXXXXXX", { body: "Where should we deliver?" });
+
+// Reply buttons accept text, image, video or document headers
+await wa.sendButtons("8801XXXXXXXXX", {
+  header: { type: "document", document: { id: "MEDIA_ID", filename: "quote.pdf" } },
+  body: "Accept this quote?",
+  buttons: [{ id: "accept", title: "Accept" }, { id: "decline", title: "Decline" }],
+});
+
+// Mark as read and show "typing..." while you build the answer
+await wa.sendTypingIndicator("wamid.INCOMING"); // same as markAsRead(id, { typingIndicator: true })
+```
+
+A string `header` is still shorthand for a text header. List messages only support text headers, so a media header there throws `WhatsAppValidationError`. The typing indicator disappears when you send a reply or after about 25 seconds.
+
 ### Media
 
 ```ts
@@ -126,7 +154,7 @@ A complete `node:http` server (no Express) is in [`examples/server.mjs`](example
 
 Checked against Meta's published docs: the interactive-message limits (reply buttons 1 to 3 with titles up to 20 characters; list header 60, body 1024, button text 20, up to 10 sections, section and row titles 24, row description 72), the default Graph API version (`v26.0` is the latest listed in the Graph API changelog; exported as `DEFAULT_API_VERSION`), the `POST /{phone-number-id}/messages` endpoint, the `messaging_product`/`recipient_type`/`to`/`type` envelope, the text `preview_url` flag, "up to three" reply buttons, and the webhook challenge and `X-Hub-Signature-256` scheme.
 
-Not independently re-verified here (Meta's documentation pages are largely client-rendered and may change): the remaining local limits in `LIMITS` (the 10-row total across a list, footer 60, text 4096, caption 1024, button and row id lengths) and the media upload limits in `MEDIA_LIMITS`, the set of rate-limit error codes treated as retry hints (`4, 17, 80007, 130429, 131048`, used for `isRateLimited` only; retries key off HTTP status), and template button `index` being sent as a string. If Meta changes a limit, pass `validate: false`. Meta releases Graph API versions regularly; pass `apiVersion` to pin a different one. Group messaging, BSUID addressing, Flows and the typing indicator are not modelled; use `sendRaw`.
+Not independently re-verified here (Meta's documentation pages are largely client-rendered and may change): the remaining local limits in `LIMITS` (the 10-row total across a list, footer 60, text 4096, caption 1024, button and row id lengths) and the media upload limits in `MEDIA_LIMITS`, the set of rate-limit error codes treated as retry hints (`4, 17, 80007, 130429, 131048`, used for `isRateLimited` only; retries key off HTTP status), and template button `index` being sent as a string. If Meta changes a limit, pass `validate: false`. Meta releases Graph API versions regularly; pass `apiVersion` to pin a different one. The payload shapes for `cta_url`, `location_request_message`, media headers and `typing_indicator` follow Meta's message reference at the time of writing, and the 20 character CTA label limit is enforced locally (`LIMITS.ctaDisplayText`). Group messaging, BSUID addressing and Flows are not modelled; use `sendRaw`.
 
 ## Bangla (বাংলা)
 

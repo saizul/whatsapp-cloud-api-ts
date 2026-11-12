@@ -62,11 +62,47 @@ export interface ReplyButton {
   title: string;
 }
 
+/**
+ * Header of an interactive message. A plain string is shorthand for a text
+ * header. Media headers are supported by reply-button and CTA URL messages;
+ * list messages only accept text headers.
+ */
+export type InteractiveHeader =
+  | string
+  | { type: "text"; text: string }
+  | { type: "image"; image: MediaRef }
+  | { type: "video"; video: MediaRef }
+  | { type: "document"; document: MediaRef & { filename?: string } };
+
 export interface ButtonsInput {
   body: string;
   buttons: ReplyButton[];
-  header?: string;
+  header?: InteractiveHeader;
   footer?: string;
+}
+
+/** Interactive call-to-action message with a single button that opens a URL. */
+export interface CtaUrlInput {
+  body: string;
+  /** Button label. */
+  displayText: string;
+  /** https URL opened when the button is tapped. */
+  url: string;
+  header?: InteractiveHeader;
+  footer?: string;
+}
+
+/** Interactive message asking the recipient to share their location. */
+export interface LocationRequestInput {
+  body: string;
+}
+
+export interface MarkAsReadOptions {
+  /**
+   * Also show a typing indicator to the sender. It is dismissed when you reply
+   * or after about 25 seconds, whichever comes first.
+   */
+  typingIndicator?: boolean;
 }
 
 export interface ListRow {
@@ -85,6 +121,7 @@ export interface ListInput {
   /** Label of the button that opens the list. */
   buttonText: string;
   sections: ListSection[];
+  /** Text only; list messages do not support media headers. */
   header?: string;
   footer?: string;
 }
