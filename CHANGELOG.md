@@ -15,6 +15,14 @@ All notable changes to this project are documented here. The format follows
 - `uploadMedia` now validates the MIME type and file size against Meta's documented
   limits before the request (disable with `validate: false`).
 - Exported `MEDIA_LIMITS` and `getMediaKind(mimeType)`.
+- `sendCtaUrl` for interactive call-to-action URL button messages, with local
+  validation of the label (max 20 characters, `LIMITS.ctaDisplayText`) and URL.
+- `sendLocationRequest` for interactive "Send location" request messages.
+- `sendButtons` and `sendCtaUrl` accept image, video and document headers via the
+  new `InteractiveHeader` type; a string is still a text header. `sendList` rejects
+  media headers, which the API does not support for lists.
+- `markAsRead(messageId, { typingIndicator: true })` and the `sendTypingIndicator`
+  shorthand show a typing indicator while a reply is prepared.
 
 ## [0.1.0] - 2026-11-08
 

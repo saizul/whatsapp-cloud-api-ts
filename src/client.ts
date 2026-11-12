@@ -2,10 +2,14 @@ import { WhatsAppApiError, WhatsAppNetworkError, WhatsAppValidationError } from 
 import type {
   ButtonsInput,
   ContactInput,
+  CtaUrlInput,
   DocumentOptions,
   DownloadedMedia,
+  InteractiveHeader,
   ListInput,
   LocationInput,
+  LocationRequestInput,
+  MarkAsReadOptions,
   MediaInfo,
   MediaOptions,
   MediaRef,
@@ -19,8 +23,10 @@ import type {
 import {
   assertButtons,
   assertCaption,
+  assertCtaUrl,
   assertList,
   assertLocation,
+  assertLocationRequest,
   assertMediaRef,
   assertMediaUpload,
   assertReaction,
@@ -68,6 +74,28 @@ interface RequestOptions {
   form?: FormData;
   /** Absolute URL instead of a Graph path (used for media downloads). */
   absolute?: boolean;
+}
+
+function mediaObject(ref: MediaRef, filename?: string): Record<string, unknown> {
+  const media: Record<string, unknown> = ref.id ? { id: ref.id } : { link: ref.link };
+  if (filename) media.filename = filename;
+  return media;
+}
+
+/** Convert the public header shape into the Graph API's `interactive.header`. */
+function buildHeader(header: InteractiveHeader | undefined): Record<string, unknown> | undefined {
+  if (!header) return undefined;
+  if (typeof header === "string") return { type: "text", text: header };
+  switch (header.type) {
+    case "text":
+      return header.text ? { type: "text", text: header.text } : undefined;
+    case "image":
+      return { type: "image", image: mediaObject(header.image) };
+    case "video":
+      return { type: "video", video: mediaObject(header.video) };
+    case "document":
+      return { type: "document", document: mediaObject(header.document, header.document.filename) };
+  }
 }
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -156,7 +184,10 @@ export class WhatsAppClient {
     return this.#media(to, "document", document, options, options.caption, options.filename);
   }
 
-  /** Interactive message with up to three quick-reply buttons. */
+  /**
+   * Interactive message with up to three quick-reply buttons. The header may be
+   * text or an image, video or document.
+   */
   sendButtons(to: string, input: ButtonsInput, options: SendOptions = {}): Promise<SendMessageResponse> {
     if (this.#validate) assertButtons(input);
     const interactive: Record<string, unknown> = {
@@ -166,9 +197,38 @@ export class WhatsAppClient {
         buttons: input.buttons.map((b) => ({ type: "reply", reply: { id: b.id, title: b.title } })),
       },
     };
-    if (input.header) interactive.header = { type: "text", text: input.header };
-    if (input.footer) interactive.footer = { text: input.footer };
-    return this.#message(to, "interactive", { interactive }, options);
+    return this.#interactive(to, interactive, input.header, input.footer, options);
+  }
+
+  /**
+   * Interactive call-to-action message: a body with one button that opens `url`.
+   * Use it instead of pasting raw links so the URL stays tidy behind a label.
+   */
+  sendCtaUrl(to: string, input: CtaUrlInput, options: SendOptions = {}): Promise<SendMessageResponse> {
+    if (this.#validate) assertCtaUrl(input);
+    const interactive: Record<string, unknown> = {
+      type: "cta_url",
+      body: { text: input.body },
+      action: {
+        name: "cta_url",
+        parameters: { display_text: input.displayText, url: input.url },
+      },
+    };
+    return this.#interactive(to, interactive, input.header, input.footer, options);
+  }
+
+  /**
+   * Interactive message with a "Send location" button. The user's reply arrives
+   * as an ordinary `location` message on the webhook.
+   */
+  sendLocationRequest(to: string, input: LocationRequestInput, options: SendOptions = {}): Promise<SendMessageResponse> {
+    if (this.#validate) assertLocationRequest(input);
+    const interactive: Record<string, unknown> = {
+      type: "location_request_message",
+      body: { text: input.body },
+      action: { name: "send_location" },
+    };
+    return this.#interactive(to, interactive, undefined, undefined, options);
   }
 
   /** Interactive list message (up to 10 rows). */
@@ -189,9 +249,7 @@ export class WhatsAppClient {
         })),
       },
     };
-    if (input.header) interactive.header = { type: "text", text: input.header };
-    if (input.footer) interactive.footer = { text: input.footer };
-    return this.#message(to, "interactive", { interactive }, options);
+    return this.#interactive(to, interactive, input.header, input.footer, options);
   }
 
   /** React to a message. Pass an empty string as `emoji` to remove a reaction. */
@@ -215,12 +273,26 @@ export class WhatsAppClient {
     return this.#message(to, "contacts", { contacts }, options);
   }
 
-  /** Mark an incoming message as read (shows blue ticks to the sender). */
-  markAsRead(messageId: string): Promise<SuccessResponse> {
-    if (!messageId) throw new WhatsAppValidationError("messageId is required");
-    return this.#request<SuccessResponse>("POST", `${this.phoneNumberId}/messages`, {
-      json: { messaging_product: "whatsapp", status: "read", message_id: messageId },
-    });
+  /**
+   * Mark an incoming message as read (shows blue ticks to the sender). Pass
+   * `{ typingIndicator: true }` to also show "typing..." while you prepare a reply.
+   */
+  markAsRead(messageId: string, options: MarkAsReadOptions = {}): Promise<SuccessResponse> {
+    if (typeof messageId !== "string" || messageId.trim() === "") {
+      throw new WhatsAppValidationError("messageId is required");
+    }
+    const json: Record<string, unknown> = { messaging_product: "whatsapp", status: "read", message_id: messageId };
+    if (options.typingIndicator) json.typing_indicator = { type: "text" };
+    return this.#request<SuccessResponse>("POST", `${this.phoneNumberId}/messages`, { json });
+  }
+
+  /**
+   * Show a typing indicator in reply to an incoming message. The API always marks
+   * that message as read at the same time. Shorthand for
+   * `markAsRead(messageId, { typingIndicator: true })`.
+   */
+  sendTypingIndicator(messageId: string): Promise<SuccessResponse> {
+    return this.markAsRead(messageId, { typingIndicator: true });
   }
 
   /** Send an arbitrary, already-built message body (escape hatch for new message types). */
@@ -287,10 +359,22 @@ export class WhatsAppClient {
       assertMediaRef(ref);
       assertCaption(caption);
     }
-    const media: Record<string, unknown> = ref.id ? { id: ref.id } : { link: ref.link };
+    const media = mediaObject(ref, filename);
     if (caption) media.caption = caption;
-    if (filename) media.filename = filename;
     return this.#message(to, type, { [type]: media }, options);
+  }
+
+  #interactive(
+    to: string,
+    interactive: Record<string, unknown>,
+    header: InteractiveHeader | undefined,
+    footer: string | undefined,
+    options: SendOptions,
+  ): Promise<SendMessageResponse> {
+    const h = buildHeader(header);
+    if (h) interactive.header = h;
+    if (footer) interactive.footer = { text: footer };
+    return this.#message(to, "interactive", { interactive }, options);
   }
 
   #message(to: string, type: string, content: Record<string, unknown>, options: SendOptions): Promise<SendMessageResponse> {

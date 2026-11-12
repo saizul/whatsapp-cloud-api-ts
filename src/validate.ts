@@ -1,5 +1,12 @@
 import { WhatsAppValidationError } from "./errors.js";
-import type { ButtonsInput, ListInput, MediaRef } from "./types.js";
+import type {
+  ButtonsInput,
+  CtaUrlInput,
+  InteractiveHeader,
+  ListInput,
+  LocationRequestInput,
+  MediaRef,
+} from "./types.js";
 
 /**
  * Local limits. They mirror the documented Cloud API limits at the time of
@@ -21,6 +28,7 @@ export const LIMITS = {
   rowDescription: 72,
   rowId: 200,
   sectionTitle: 24,
+  ctaDisplayText: 20,
   emoji: 16,
 } as const;
 
@@ -62,11 +70,46 @@ export function assertCaption(caption: string | undefined): void {
   max(caption, LIMITS.caption, "caption");
 }
 
+const MEDIA_HEADER_TYPES = ["image", "video", "document"] as const;
+
+/**
+ * Validate an interactive header. Text headers are limited to 60 characters;
+ * media headers need exactly one of `id` or an https `link`.
+ */
+export function assertInteractiveHeader(header: InteractiveHeader | undefined, allowMedia: boolean): void {
+  // An empty string header is ignored (no header is sent), as before.
+  if (header === undefined || header === "") return;
+  if (typeof header === "string") {
+    max(header, LIMITS.interactiveHeader, "header");
+    return;
+  }
+  if (typeof header !== "object" || header === null) fail("header must be a string or a header object");
+  if (header.type === "text") {
+    nonEmpty(header.text, "header text");
+    max(header.text, LIMITS.interactiveHeader, "header text");
+    return;
+  }
+  if (!(MEDIA_HEADER_TYPES as readonly string[]).includes(header.type)) {
+    fail(`header type must be one of text, ${MEDIA_HEADER_TYPES.join(", ")}`);
+  }
+  if (!allowMedia) fail("this message type only supports text headers");
+  const ref = (header as Record<string, unknown>)[header.type] as (MediaRef & { filename?: unknown }) | undefined;
+  if (typeof ref !== "object" || ref === null) fail(`${header.type} header needs a \`${header.type}\` media reference`);
+  assertMediaRef(ref);
+  if (header.type === "document" && ref.filename !== undefined && typeof ref.filename !== "string") {
+    fail("document header filename must be a string");
+  }
+}
+
+function assertInteractiveBody(body: string, footer: string | undefined): void {
+  nonEmpty(body, "body");
+  max(body, LIMITS.interactiveBody, "body");
+  max(footer, LIMITS.interactiveFooter, "footer");
+}
+
 export function assertButtons(input: ButtonsInput): void {
-  nonEmpty(input.body, "body");
-  max(input.body, LIMITS.interactiveBody, "body");
-  max(input.header, LIMITS.interactiveHeader, "header");
-  max(input.footer, LIMITS.interactiveFooter, "footer");
+  assertInteractiveBody(input.body, input.footer);
+  assertInteractiveHeader(input.header, true);
   const n = input.buttons?.length ?? 0;
   if (n < 1 || n > LIMITS.buttonCount) fail(`buttons must contain 1 to ${LIMITS.buttonCount} items`);
   const ids = new Set<string>();
@@ -81,10 +124,8 @@ export function assertButtons(input: ButtonsInput): void {
 }
 
 export function assertList(input: ListInput): void {
-  nonEmpty(input.body, "body");
-  max(input.body, LIMITS.interactiveBody, "body");
-  max(input.header, LIMITS.interactiveHeader, "header");
-  max(input.footer, LIMITS.interactiveFooter, "footer");
+  assertInteractiveBody(input.body, input.footer);
+  assertInteractiveHeader(input.header, false);
   nonEmpty(input.buttonText, "buttonText");
   max(input.buttonText, LIMITS.listButtonText, "buttonText");
   const sections = input.sections ?? [];
@@ -108,6 +149,28 @@ export function assertList(input: ListInput): void {
     }
   }
   if (total < 1 || total > LIMITS.listRowsTotal) fail(`lists support 1 to ${LIMITS.listRowsTotal} rows in total`);
+}
+
+export function assertCtaUrl(input: CtaUrlInput): void {
+  assertInteractiveBody(input.body, input.footer);
+  assertInteractiveHeader(input.header, true);
+  nonEmpty(input.displayText, "displayText");
+  max(input.displayText, LIMITS.ctaDisplayText, "displayText");
+  nonEmpty(input.url, "url");
+  let parsed: URL | undefined;
+  try {
+    parsed = new URL(input.url);
+  } catch {
+    /* handled below */
+  }
+  if (!parsed || (parsed.protocol !== "https:" && parsed.protocol !== "http:")) {
+    fail("url must be an absolute http(s) URL");
+  }
+}
+
+export function assertLocationRequest(input: LocationRequestInput): void {
+  nonEmpty(input?.body, "body");
+  max(input.body, LIMITS.interactiveBody, "body");
 }
 
 export function assertReaction(messageId: string, emoji: string): void {
