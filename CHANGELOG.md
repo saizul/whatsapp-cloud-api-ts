@@ -12,6 +12,15 @@ All notable changes to this project are documented here. The format follows
 - Re-checked interactive reply-button and list limits against Meta's docs.
 
 ### Added
+- `WebhookRouter` dispatches webhook events to handlers by message type
+  (`onMessage`), status value (`onStatus`) and value-level errors (`onError`),
+  and reports `handled`, `duplicates`, `stale`, `unhandled` and `failures`.
+- Redelivery deduplication through a pluggable `DedupeStore` (`claim`/`release`),
+  with an in-process `MemoryDedupeStore` default (24 h TTL, 10 000 key cap). A key
+  is released when a handler throws, so Meta's retry is processed.
+- Optional `maxAgeSeconds` to skip messages and statuses older than a limit.
+- Exported `eventDedupeKey(event)`.
+- The example server now uses `WebhookRouter`.
 - `uploadMedia` now validates the MIME type and file size against Meta's documented
   limits before the request (disable with `validate: false`).
 - Exported `MEDIA_LIMITS` and `getMediaKind(mimeType)`.

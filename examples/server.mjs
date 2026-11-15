@@ -3,6 +3,7 @@
 //   WHATSAPP_TOKEN=... PHONE_NUMBER_ID=... APP_SECRET=... VERIFY_TOKEN=... node examples/server.mjs
 import { createServer } from "node:http";
 import {
+  WebhookRouter,
   WhatsAppClient,
   getMessageText,
   verifyAndParse,
@@ -17,30 +18,28 @@ if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID || !APP_SECRET || !VERIFY_TOKEN) {
 
 const wa = new WhatsAppClient({ accessToken: WHATSAPP_TOKEN, phoneNumberId: PHONE_NUMBER_ID });
 
-async function handleEvent(event) {
-  if (event.kind === "status") {
-    console.log(`status ${event.status.status} for ${event.status.id}`);
-    return;
-  }
-  if (event.kind !== "message") return;
-  const { message } = event;
-  await wa.markAsRead(message.id);
+// Meta redelivers webhooks; the router skips events it has already handled
+// and, with maxAgeSeconds, does not answer messages queued during an outage.
+const router = new WebhookRouter({ maxAgeSeconds: 15 * 60 })
+  .onStatus(({ status }) => console.log(`status ${status.status} for ${status.id}`))
+  .onMessage(async ({ message }) => {
+    await wa.markAsRead(message.id);
 
-  const text = (getMessageText(message) ?? "").toLowerCase();
-  if (text === "menu") {
-    await wa.sendButtons(message.from, {
-      body: "How can I help?",
-      buttons: [
-        { id: "pricing", title: "Pricing" },
-        { id: "human", title: "Talk to a human" },
-      ],
-    });
-  } else {
-    await wa.sendText(message.from, `You said: ${getMessageText(message) ?? `[${message.type}]`}`, {
-      replyTo: message.id,
-    });
-  }
-}
+    const text = (getMessageText(message) ?? "").toLowerCase();
+    if (text === "menu") {
+      await wa.sendButtons(message.from, {
+        body: "How can I help?",
+        buttons: [
+          { id: "pricing", title: "Pricing" },
+          { id: "human", title: "Talk to a human" },
+        ],
+      });
+    } else {
+      await wa.sendText(message.from, `You said: ${getMessageText(message) ?? `[${message.type}]`}`, {
+        replyTo: message.id,
+      });
+    }
+  });
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -74,7 +73,8 @@ createServer(async (req, res) => {
       const raw = await readBody(req); // raw bytes: needed for the signature
       const events = verifyAndParse(raw, req.headers["x-hub-signature-256"], APP_SECRET);
       res.writeHead(200).end(); // acknowledge quickly, work afterwards
-      for (const e of events) await handleEvent(e).catch((err) => console.error(err.message));
+      const result = await router.dispatch(events);
+      for (const f of result.failures) console.error(f.error instanceof Error ? f.error.message : f.error);
     } catch (err) {
       console.error("rejected webhook:", err.message);
       if (!res.headersSent) res.writeHead(401).end();
