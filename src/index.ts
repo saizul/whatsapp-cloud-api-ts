@@ -22,3 +22,15 @@ export {
 export type { ChallengeResult } from "./webhook.js";
 export type * from "./types.js";
 export type * from "./webhook-types.js";
+export { WebhookRouter, MemoryDedupeStore, eventDedupeKey } from "./router.js";
+export type {
+  DedupeStore,
+  MemoryDedupeStoreOptions,
+  WebhookRouterOptions,
+  MessageHandler,
+  StatusHandler,
+  ErrorEventHandler,
+  DispatchOutcome,
+  DispatchFailure,
+  DispatchResult,
+} from "./router.js";

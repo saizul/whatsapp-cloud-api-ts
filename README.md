@@ -148,6 +148,29 @@ for (const e of events) {
 
 Events are a discriminated union (`kind: "message" | "status" | "error"`). Message `type` covers text, image, video, audio, document, sticker, location, contacts, interactive (button/list replies), template button, reaction, order, system and unsupported; unknown future types pass through untouched.
 
+### Routing, deduplication and stale events
+
+Meta delivers webhooks at least once and retries failed deliveries, so the same message or status can arrive more than once. `WebhookRouter` dispatches events to handlers and skips redeliveries:
+
+```ts
+import { WebhookRouter, verifyAndParse } from "whatsapp-cloud-api-ts";
+
+const router = new WebhookRouter({ maxAgeSeconds: 900 }) // ignore events older than 15 minutes
+  .onMessage("text", async ({ message }) => reply(message))
+  .onMessage("*", ({ message }) => audit(message)) // runs after type-specific handlers
+  .onStatus("failed", ({ status }) => console.warn(status.errors))
+  .onError(({ errors }) => console.error(errors));
+
+const result = await router.dispatch(verifyAndParse(rawBody, signature, process.env.APP_SECRET!));
+// { handled, duplicates, stale, unhandled, failures: [{ event, error }], outcomes: [...] }
+```
+
+- Messages are deduplicated by message id; statuses by message id plus status, so `sent`, `delivered` and `read` each run once. Value-level `errors` events are never deduplicated.
+- If a handler throws, the other handlers still run, the failure is listed in `result.failures` and the event's key is released, so a redelivery is handled again. Answer with a non-2xx status if you want Meta to retry.
+- `maxAgeSeconds` (off by default) skips messages and statuses whose `timestamp` is older than the limit; stale events are not recorded as seen.
+- The default store is an in-process `MemoryDedupeStore` (24 h TTL via `dedupeTtlMs`, capped at 10 000 keys). For several processes, pass `dedupe: { claim(key, ttlMs), release(key) }` backed by shared storage, for example Redis `SET key 1 NX PX ttl`. Pass `dedupe: false` to turn it off.
+- `dispatch` also accepts an already parsed JSON payload and calls `parseWebhook` for you.
+
 A complete `node:http` server (no Express) is in [`examples/server.mjs`](examples/server.mjs): `npm run build`, set `WHATSAPP_TOKEN`, `PHONE_NUMBER_ID`, `APP_SECRET`, `VERIFY_TOKEN`, then `node examples/server.mjs`.
 
 ## Verified vs. uncertain
